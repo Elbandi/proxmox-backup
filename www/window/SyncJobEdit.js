@@ -246,6 +246,19 @@ Ext.define('PBS.window.SyncJobEdit', {
 			},
 		    },
 		],
+		advancedColumn2: [
+		    {
+			fieldLabel: gettext('Weekly Only'),
+			xtype: 'proxmoxcheckbox',
+			name: 'weekly-only',
+			autoEl: {
+			    tag: 'div',
+			    'data-qtip': gettext('Sync only the weekly snapshots'),
+			},
+			uncheckedValue: false,
+			value: false,
+		    },
+		],
 	    },
 	    {
 		xtype: 'inputpanel',

@@ -14,7 +14,7 @@ use pbs_api_types::{
     BackupNamespace, GroupFilter, RateLimitConfig, SyncJobConfig, DATASTORE_SCHEMA,
     GROUP_FILTER_LIST_SCHEMA, IGNORE_VERIFIED_BACKUPS_SCHEMA, NS_MAX_DEPTH_SCHEMA,
     REMOTE_ID_SCHEMA, REMOVE_VANISHED_BACKUPS_SCHEMA, TRANSFER_LAST_SCHEMA, UPID_SCHEMA,
-    VERIFICATION_OUTDATED_AFTER_SCHEMA,
+    VERIFICATION_OUTDATED_AFTER_SCHEMA, WEEKLY_ONLY_SCHEMA,
 };
 use pbs_client::{display_task_log, view_task_result};
 use pbs_config::sync;
@@ -276,6 +276,10 @@ fn task_mgmt_cli() -> CommandLineInterface {
                 schema: TRANSFER_LAST_SCHEMA,
                 optional: true,
             },
+            "weekly-only": {
+                schema: WEEKLY_ONLY_SCHEMA,
+                optional: true,
+            },
         }
    }
 )]
@@ -292,6 +296,7 @@ async fn pull_datastore(
     group_filter: Option<Vec<GroupFilter>>,
     limit: RateLimitConfig,
     transfer_last: Option<usize>,
+    weekly_only: Option<bool>,
     param: Value,
 ) -> Result<Value, Error> {
     let output_format = get_output_format(&param);
@@ -326,6 +331,10 @@ async fn pull_datastore(
 
     if transfer_last.is_some() {
         args["transfer-last"] = json!(transfer_last)
+    }
+
+    if let Some(weekly_only) = weekly_only {
+        args["weekly-only"] = Value::from(weekly_only)
     }
 
     let mut limit_json = json!(limit);

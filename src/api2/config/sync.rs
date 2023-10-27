@@ -217,6 +217,8 @@ pub enum DeletableProperty {
     MaxDepth,
     /// Delete the transfer_last property,
     TransferLast,
+    /// Delete the weekly_only property,
+    WeeklyOnly,
 }
 
 #[api(
@@ -314,6 +316,9 @@ pub fn update_sync_job(
                 DeletableProperty::TransferLast => {
                     data.transfer_last = None;
                 }
+                DeletableProperty::WeeklyOnly => {
+                    data.weekly_only = None;
+                }
             }
         }
     }
@@ -350,6 +355,9 @@ pub fn update_sync_job(
     }
     if let Some(transfer_last) = update.transfer_last {
         data.transfer_last = Some(transfer_last);
+    }
+    if let Some(weekly_only) = update.weekly_only {
+        data.weekly_only = Some(weekly_only);
     }
 
     if update.limit.rate_in.is_some() {
@@ -516,6 +524,7 @@ acl:1:/remote/remote1/remotestore1:write@pbs:RemoteSyncOperator
         schedule: None,
         limit: pbs_api_types::RateLimitConfig::default(), // no limit
         transfer_last: None,
+        weekly_only: None,
     };
 
     // should work without ACLs

@@ -449,6 +449,11 @@ pub const TRANSFER_LAST_SCHEMA: Schema =
         .minimum(1)
         .schema();
 
+pub const WEEKLY_ONLY_SCHEMA: Schema =
+    BooleanSchema::new("Limit transfer to weekly backup, skipping others")
+        .default(false)
+        .schema();
+
 #[api(
     properties: {
         id: {
@@ -502,6 +507,10 @@ pub const TRANSFER_LAST_SCHEMA: Schema =
             schema: TRANSFER_LAST_SCHEMA,
             optional: true,
         },
+        "weekly-only": {
+            schema: WEEKLY_ONLY_SCHEMA,
+            optional: true,
+        },
     }
 )]
 #[derive(Serialize, Deserialize, Clone, Updater, PartialEq)]
@@ -533,6 +542,8 @@ pub struct SyncJobConfig {
     pub limit: RateLimitConfig,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transfer_last: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub weekly_only: Option<bool>,
 }
 
 impl SyncJobConfig {

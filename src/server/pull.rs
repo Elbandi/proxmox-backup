@@ -61,6 +61,8 @@ pub(crate) struct PullParameters {
     limit: RateLimitConfig,
     /// How many snapshots should be transferred at most (taking the newest N snapshots)
     transfer_last: Option<usize>,
+    /// Transfer the weekly backups only
+    weekly_only: bool,
 }
 
 impl PullParameters {
@@ -81,6 +83,7 @@ impl PullParameters {
         group_filter: Option<Vec<GroupFilter>>,
         limit: RateLimitConfig,
         transfer_last: Option<usize>,
+        weekly_only: Option<bool>,
     ) -> Result<Self, Error> {
         let store = DataStore::lookup_datastore(store, Some(Operation::Write))?;
 
@@ -93,6 +96,7 @@ impl PullParameters {
         let remote: Remote = remote_config.lookup("remote", remote)?;
 
         let remove_vanished = remove_vanished.unwrap_or(false);
+        let weekly_only = weekly_only.unwrap_or(false);
 
         let source = BackupRepository::new(
             Some(remote.config.auth_id.clone()),
@@ -113,6 +117,7 @@ impl PullParameters {
             group_filter,
             limit,
             transfer_last,
+            weekly_only,
         })
     }
 
@@ -544,6 +549,7 @@ async fn pull_snapshot_from(
 enum SkipReason {
     AlreadySynced,
     TransferLast,
+    WeeklyOnly,
 }
 
 impl std::fmt::Display for SkipReason {
@@ -554,6 +560,7 @@ impl std::fmt::Display for SkipReason {
             match self {
                 SkipReason::AlreadySynced => "older than the newest local snapshot",
                 SkipReason::TransferLast => "due to transfer-last",
+                SkipReason::WeeklyOnly => "not a weekly backup",
             }
         )
     }
@@ -684,6 +691,7 @@ async fn pull_group(
 
     let mut already_synced_skip_info = SkipInfo::new(SkipReason::AlreadySynced);
     let mut transfer_last_skip_info = SkipInfo::new(SkipReason::TransferLast);
+    let mut weekly_only_skip_info = SkipInfo::new(SkipReason::WeeklyOnly);
 
     let total_amount = list.len();
 
@@ -692,7 +700,8 @@ async fn pull_group(
         .map(|count| total_amount.saturating_sub(count))
         .unwrap_or_default();
 
-    for (pos, item) in list.into_iter().enumerate() {
+    let mut listiter = list.into_iter().enumerate().peekable();
+    while let Some((pos, item)) = listiter.next() {
         let snapshot = item.backup;
 
         // in-progress backups can't be synced
@@ -721,6 +730,24 @@ async fn pull_group(
         } else if transfer_last_skip_info.count > 0 {
             task_log!(worker, "{}", transfer_last_skip_info);
             transfer_last_skip_info.reset();
+        }
+
+        if params.weekly_only {
+            let skip = match listiter.peek() {
+                Some((_, next_item)) => match (proxmox_time::strftime_local("%G/%V", snapshot.time), proxmox_time::strftime_local("%G/%V", next_item.backup.time)) {
+                    (Ok(weekday), Ok(next_weekday)) => weekday == next_weekday,
+                    _ => true
+                },
+                _ => true
+            };
+
+            if skip {
+                weekly_only_skip_info.update(snapshot.time);
+                continue;
+            } else if weekly_only_skip_info.count > 0 {
+                task_log!(worker, "{}", weekly_only_skip_info);
+                weekly_only_skip_info.reset();
+            }
         }
 
         // get updated auth_info (new tickets)
@@ -755,6 +782,10 @@ async fn pull_group(
         task_log!(worker, "percentage done: {}", progress);
 
         result?; // stop on error
+    }
+
+    if weekly_only_skip_info.count > 0 {
+        task_log!(worker, "{}", weekly_only_skip_info);
     }
 
     if params.remove_vanished {
